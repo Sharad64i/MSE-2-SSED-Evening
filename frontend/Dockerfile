@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -19,3 +19,4 @@ EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD ["wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
+
