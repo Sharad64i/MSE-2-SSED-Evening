@@ -31,6 +31,20 @@ jobs:
           test -n "$DOCKERHUB_TOKEN" || (echo "Missing DOCKERHUB_TOKEN secret" && exit 1)
           test -n "$POSTGRES_PASSWORD" || (echo "Missing POSTGRES_PASSWORD secret" && exit 1)
 
+      - name: Create deployment environment file from repository secrets
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || secrets.POSTGRES_PASSWORD }}
+        run: |
+          {
+            printf 'DOCKERHUB_USERNAME=%s\n' "$DOCKERHUB_USERNAME"
+            printf 'POSTGRES_DB=taskflow\nPOSTGRES_USER=taskflow_user\n'
+            printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD"
+            printf 'JWT_SECRET=%s\n' "$JWT_SECRET"
+            printf 'BACKEND_PORT=3000\nFRONTEND_PORT=8080\n'
+          } > .env
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -57,20 +71,6 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/frontend:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/frontend:v1
-
-      - name: Create deployment environment file from repository secrets
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET || secrets.POSTGRES_PASSWORD }}
-        run: |
-          {
-            printf 'DOCKERHUB_USERNAME=%s\n' "$DOCKERHUB_USERNAME"
-            printf 'POSTGRES_DB=taskflow\nPOSTGRES_USER=taskflow_user\n'
-            printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD"
-            printf 'JWT_SECRET=%s\n' "$JWT_SECRET"
-            printf 'BACKEND_PORT=3000\nFRONTEND_PORT=8080\n'
-          } > .env
 
       - name: Validate image-based deployment Compose
         run: |
@@ -125,4 +125,9 @@ jobs:
 
       - name: Cleanup deployment
         if: always()
-        run: docker compose -f docker-compose.deploy.yml down -v --remove-orphans || true
+        run: |
+          if [ -f .env ]; then
+            docker compose -f docker-compose.deploy.yml down -v --remove-orphans || true
+          else
+            echo "Skipping Compose cleanup because deployment configuration was not created."
+          fi
